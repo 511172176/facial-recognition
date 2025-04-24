@@ -1,0 +1,23 @@
+# Python 環境
+venv/
+__pycache__/
+*.py[cod]
+*.so
+
+# 模型 & 訓練輸出
+*.h5
+*.pb
+*.tflite
+*.ckpt
+*.log
+*.csv
+*.npy
+*.npz
+
+# 視覺輸出
+*.png
+*.jpg
+*.jpeg
+
+# VS Code 設定
+.vscode/

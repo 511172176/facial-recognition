@@ -15,6 +15,30 @@ import time
 import winsound
 from deepface import DeepFace  # 導入 deepface 用於情緒識別
 import json 
+from tensorflow.keras.models import load_model
+from tensorflow.keras.preprocessing.image import img_to_array
+from tensorflow.keras.applications.imagenet_utils import preprocess_input
+import tensorflow as tf
+import numpy as np
+
+# 重新定義 focal loss（跟訓練時的一樣）
+def focal_loss(gamma=2.0, alpha=0.25):
+    def loss_fn(y_true, y_pred):
+        eps = 1e-8
+        y_pred = tf.clip_by_value(y_pred, eps, 1. - eps)
+        ce = -y_true * tf.math.log(y_pred)
+        fl = alpha * tf.pow(1 - y_pred, gamma) * ce
+        return tf.reduce_mean(tf.reduce_sum(fl, axis=1))
+    return loss_fn
+
+# 用 custom_objects 讀取模型
+emotion_model = load_model(
+    'best_model_phase2.h5',
+    custom_objects={'loss_fn': focal_loss(gamma=2.0, alpha=0.25)}
+)
+
+# 類別對應（根據訓練順序）
+emotion_labels = ['angry', 'disgust', 'fear', 'happy', 'sad', 'surprise', 'neutral']
 
 with open("config.json", "r") as f:
     config = json.load(f)
@@ -28,15 +52,38 @@ lastTime = int(time.time())
 video_capture = cv2.VideoCapture(0)
 
 # 已知人臉載入
-obama_image = face_recognition.load_image_file("pic/Ian.jpg")
+'''obama_image = face_recognition.load_image_file("pic/Ian.jpg")
 obama_face_encoding = face_recognition.face_encodings(obama_image)[0]
 biden_image = face_recognition.load_image_file("pic/vera.jpg")
 biden_face_encoding = face_recognition.face_encodings(biden_image)[0]
-obama_image = face_recognition.load_image_file("pic/Image (8).jpg")
-new_person_face_encoding = face_recognition.face_encodings(obama_image)[0] #test add new
+#obama_image = face_recognition.load_image_file("pic/Image (8).jpg")
+#new_person_face_encoding = face_recognition.face_encodings(obama_image)[0] #test add new
+'''
+#known_face_encodings = [obama_face_encoding, biden_face_encoding, '''new_person_face_encoding'''] #test add new
+#known_face_names = ["Ian Liu", "Vera Wang", "New Person"] #test add new
 
-known_face_encodings = [obama_face_encoding, biden_face_encoding, new_person_face_encoding] #test add new
-known_face_names = ["Ian Liu", "Vera Wang", "New Person"] #test add new
+known_face_encodings = []
+known_face_names = []
+
+# 定義人臉資料：圖片路徑與對應姓名
+known_faces = [
+    ("pic/Ian.jpg", "Ian Liu"),
+    ("pic/vera.jpg", "Vera Wang"),
+    #("pic/Image (8).jpg", "New Person"),  # 若圖片存在的話
+]
+
+# 嘗試讀入與編碼每一張人臉
+for path, name in known_faces:
+    try:
+        image = face_recognition.load_image_file(path)
+        encodings = face_recognition.face_encodings(image)
+        if encodings:  # 確保有抓到臉
+            known_face_encodings.append(encodings[0])
+            known_face_names.append(name)
+        else:
+            print(f"⚠️ 無法從 {path} 中辨識人臉，已跳過")
+    except Exception as e:
+        print(f"⚠️ 載入 {path} 發生錯誤：{e}")
 
 # 初始化變數
 face_locations = []
@@ -73,10 +120,24 @@ while True:
 
         # 裁剪人臉區域進行情緒識別
         face_image = frame[top:bottom, left:right]
-        try:
+        '''try:
             # 使用 deepface 進行情緒分析
             emotion = DeepFace.analyze(face_image, actions=['emotion'], enforce_detection=False)[0]['dominant_emotion']
+
         except:
+            emotion = "Unknown"'''
+        # 使用自定義模型進行情緒辨識
+        try:
+            face_resized = cv2.resize(face_image, (224, 224))  # 假設模型輸入為 224x224
+            face_array = img_to_array(face_resized)
+            face_array = face_array / 255.0 
+            face_array = np.expand_dims(face_array, axis=0)
+            #face_array = preprocess_input(face_array)  # 如果模型有用 keras.applications 的前處理
+
+            pred = emotion_model.predict(face_array)[0]
+            emotion = emotion_labels[np.argmax(pred)]
+        except Exception as e:
+            print("Emotion prediction failed:", e)
             emotion = "Unknown"
 
         # 畫框和標籤
