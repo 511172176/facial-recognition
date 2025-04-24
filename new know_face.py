@@ -20,6 +20,17 @@ from tensorflow.keras.preprocessing.image import img_to_array
 from tensorflow.keras.applications.imagenet_utils import preprocess_input
 import tensorflow as tf
 import numpy as np
+from playsound import playsound
+import threading
+from playsound import playsound
+import os
+import winsound
+
+def play_sound_async(file_path):
+    if os.path.exists(file_path):
+        threading.Thread(target=playsound, args=(file_path,), daemon=True).start()
+    else:
+        print(f"❌ 找不到音效檔案：{file_path}")
 
 # 重新定義 focal loss（跟訓練時的一樣）
 def focal_loss(gamma=2.0, alpha=0.25):
@@ -69,7 +80,8 @@ known_face_names = []
 known_faces = [
     ("pic/Ian.jpg", "Ian Liu"),
     ("pic/vera.jpg", "Vera Wang"),
-    #("pic/Image (8).jpg", "New Person"),  # 若圖片存在的話
+    #("pic/litselin.jpg", "li tselin"),  # 若圖片存在的話
+    #("pic/Image.jpg", "li tselin"),  # 若圖片存在的話
 ]
 
 # 嘗試讀入與編碼每一張人臉
@@ -134,7 +146,7 @@ while True:
             face_array = np.expand_dims(face_array, axis=0)
             #face_array = preprocess_input(face_array)  # 如果模型有用 keras.applications 的前處理
 
-            pred = emotion_model.predict(face_array)[0]
+            pred = emotion_model.predict(face_array, verbose=0)[0]
             emotion = emotion_labels[np.argmax(pred)]
         except Exception as e:
             print("Emotion prediction failed:", e)
@@ -146,12 +158,12 @@ while True:
         cv2.imwrite("pic/"+str(capture_time)+".jpg", frame)
 
         # 每 30 秒發送郵件並包含情緒資訊
-        if int(time.time()) - lastTime >= 30:
+        '''if int(time.time()) - lastTime >= 30:
             lastTime = int(time.time())
             content = MIMEMultipart()
             content["subject"] = "!!!"
-            content["from"] = "email" # 寄件者
-            content["to"] = "email" # 收件者
+            content["from"] = "ae58585858@gmail.com" # 寄件者
+            content["to"] = "ae58585858@gmail.com" # 收件者
             content.attach(MIMEText(f"偵測到 {name} 出現在你家門口，情緒：{emotion}"))
             content.attach(MIMEImage(Path("pic/"+str(capture_time)+".jpg").read_bytes()))
             with smtplib.SMTP(host="smtp.gmail.com", port="587") as smtp:
@@ -165,7 +177,90 @@ while True:
                     print("Error message: ", e)
                 frequency = 2000
                 duration = 1000
-                winsound.Beep(frequency, duration)
+                playsound("y1634.wav")  # 或 buzzer.wav'''
+        
+        if name == "Unknown" and int(time.time()) - lastTime >= 30:
+            lastTime = int(time.time())
+            print(f"⚠️ 偵測到陌生人，準備發出警報")
+            winsound.PlaySound(None, winsound.SND_PURGE)  # 停止當前播放
+            winsound.PlaySound("y1634.wav", winsound.SND_FILENAME | winsound.SND_ASYNC)
+            content = MIMEMultipart()
+            content["subject"] = "警告！陌生人出現"
+            content["from"] = EMAIL_USER
+            content["to"] = EMAIL_USER
+            content.attach(MIMEText(f"⚠️ 偵測到陌生人出現在你家門口，情緒：{emotion}"))
+            content.attach(MIMEImage(Path("pic/"+str(capture_time)+".jpg").read_bytes()))
+            with smtplib.SMTP(host="smtp.gmail.com", port=587) as smtp:
+                try:
+                    smtp.ehlo()
+                    smtp.starttls()
+                    smtp.login(EMAIL_USER, EMAIL_PASS)
+                    smtp.send_message(content)
+                    print("✅ 郵件已發送")
+                except Exception as e:
+                    print("❌ 郵件發送失敗：", e)
+            #play_sound_async("y1634.wav")
+            #playsound("y1634.wav")
+            
+        elif name != "Unknown" and int(time.time()) - lastTime >= 30:
+            lastTime = int(time.time())
+            print(f"✅ 偵測到家人，準備發出門鈴")
+            winsound.PlaySound(None, winsound.SND_PURGE)  # 停止當前播放
+            winsound.PlaySound("y1745.wav", winsound.SND_FILENAME | winsound.SND_ASYNC)
+            content = MIMEMultipart()
+            content["subject"] = "通知！家人出現"
+            content["from"] = EMAIL_USER
+            content["to"] = EMAIL_USER
+            content.attach(MIMEText(f"✅ 偵測到家人出現在你家門口，情緒：{emotion}"))
+            content.attach(MIMEImage(Path("pic/"+str(capture_time)+".jpg").read_bytes()))
+            with smtplib.SMTP(host="smtp.gmail.com", port=587) as smtp:
+                try:
+                    smtp.ehlo()
+                    smtp.starttls()
+                    smtp.login(EMAIL_USER, EMAIL_PASS)
+                    smtp.send_message(content)
+                    print("✅ 郵件已發送")
+                except Exception as e:
+                    print("❌ 郵件發送失敗：", e)
+            #play_sound_async("y1745.wav")
+            #playsound("y1745.wav")
+            
+        
+        '''# ✅ 替換舊的發信 & 音效邏輯
+        if int(time.time()) - lastTime >= 30:
+            lastTime = int(time.time())
+            filename = f"pic/{capture_time}_{name}_{emotion}.jpg"
+            cv2.imwrite(filename, frame)
+
+            content = MIMEMultipart()
+
+            if name == "Unknown":
+                subject = "⚠️ 警告！陌生人出現"
+                body = f"⚠️ 偵測到陌生人出現在你家門口，情緒：{emotion}"
+                sound_file = "y1634.wav"
+            else:
+                subject = "✅ 通知：家人或熟人來訪"
+                body = f"✅ 偵測到 {name} 出現在你家門口，情緒：{emotion}"
+                sound_file = "y1745.wav"
+
+            content["subject"] = subject
+            content["from"] = EMAIL_USER
+            content["to"] = EMAIL_USER
+            content.attach(MIMEText(body))
+            content.attach(MIMEImage(Path(filename).read_bytes()))
+
+            try:
+                with smtplib.SMTP(host="smtp.gmail.com", port=587) as smtp:
+                    smtp.ehlo()
+                    smtp.starttls()
+                    smtp.login(EMAIL_USER, EMAIL_PASS)
+                    smtp.send_message(content)
+                    print(f"✅ 郵件已發送：{subject}")
+            except Exception as e:
+                print("❌ 郵件發送失敗：", e)
+
+            # ✅ 使用非同步播放聲音，避免主程式卡住
+            threading.Thread(target=playsound, args=(sound_file,), daemon=True).start()'''
 
         # 在畫面上顯示名字和情緒
         cv2.rectangle(frame, (left, bottom - 70), (right, bottom), (0, 0, 255), cv2.FILLED)
