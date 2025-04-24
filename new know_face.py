@@ -80,7 +80,7 @@ known_face_names = []
 known_faces = [
     ("pic/Ian.jpg", "Ian Liu"),
     ("pic/vera.jpg", "Vera Wang"),
-    #("pic/litselin.jpg", "li tselin"),  # 若圖片存在的話
+    ("pic/litselin.jpg", "li tselin"),  # 若圖片存在的話
     #("pic/Image.jpg", "li tselin"),  # 若圖片存在的話
 ]
 
